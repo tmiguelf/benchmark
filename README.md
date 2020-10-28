@@ -1,6 +1,11 @@
 # Benchmark
 Hard fork of [Google benchmark](https://github.com/google/benchmark)
 
+Build status:
+
+[![Build status](https://ci.appveyor.com/api/projects/status/mielo2n0670qdob8/branch/master?svg=true)](https://ci.appveyor.com/project/tmiguelf/benchmark/branch/master)
+
+
 A library to benchmark code snippets, similar to unit tests. Example:
 
 ```c++
