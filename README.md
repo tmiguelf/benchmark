@@ -178,82 +178,10 @@ To run the benchmark, compile and link against the `benchmark` library
 (libbenchmark.a/.so). If you followed the build steps above, this library will 
 be under the build directory you created.
 
-```bash
-# Example on linux after running the build steps above. Assumes the
-# `benchmark` and `build` directories are under the current directory.
-$ g++ mybenchmark.cc -std=c++11 -isystem benchmark/include \
-  -Lbenchmark/build/src -lbenchmark -lpthread -o mybenchmark
-```
-
-Alternatively, link against the `benchmark_main` library and remove
-`BENCHMARK_MAIN();` above to get the same behavior.
 
 The compiled executable will run all benchmarks by default. Pass the `--help`
 flag for option information or see the guide below.
 
-### Usage with CMake
-
-If using CMake, it is recommended to link against the project-provided
-`benchmark::benchmark` and `benchmark::benchmark_main` targets using
-`target_link_libraries`.
-It is possible to use ```find_package``` to import an installed version of the
-library.
-```cmake
-find_package(benchmark REQUIRED)
-```
-Alternatively, ```add_subdirectory``` will incorporate the library directly in
-to one's CMake project.
-```cmake
-add_subdirectory(benchmark)
-```
-Either way, link to the library as follows.
-```cmake
-target_link_libraries(MyTarget benchmark::benchmark)
-```
-
-## Platform Specific Build Instructions
-
-### Building with GCC
-
-When the library is built using GCC it is necessary to link with the pthread
-library due to how GCC implements `std::thread`. Failing to link to pthread will
-lead to runtime exceptions (unless you're using libc++), not linker errors. See
-[issue #67](https://github.com/google/benchmark/issues/67) for more details. You
-can link to pthread by adding `-pthread` to your linker command. Note, you can
-also use `-lpthread`, but there are potential issues with ordering of command
-line parameters if you use that.
-
-### Building with Visual Studio 2015 or 2017
-
-The `shlwapi` library (`-lshlwapi`) is required to support a call to `CPUInfo` which reads the registry. Either add `shlwapi.lib` under `[ Configuration Properties > Linker > Input ]`, or use the following:
-
-```
-// Alternatively, can add libraries using linker options.
-#ifdef _WIN32
-#pragma comment ( lib, "Shlwapi.lib" )
-#ifdef _DEBUG
-#pragma comment ( lib, "benchmarkd.lib" )
-#else
-#pragma comment ( lib, "benchmark.lib" )
-#endif
-#endif
-```
-
-Can also use the graphical version of CMake:
-* Open `CMake GUI`.
-* Under `Where to build the binaries`, same path as source plus `build`.
-* Under `CMAKE_INSTALL_PREFIX`, same path as source plus `install`.
-* Click `Configure`, `Generate`, `Open Project`.
-* If build fails, try deleting entire directory and starting again, or unticking options to build less.
-
-### Building with Intel 2015 Update 1 or Intel System Studio Update 4
-
-See instructions for building with Visual Studio. Once built, right click on the solution and change the build to Intel.
-
-### Building on Solaris
-
-If you're running benchmarks on solaris, you'll want the kstat library linked in
-too (`-lkstat`).
 
 ## User Guide
 
