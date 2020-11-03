@@ -7,7 +7,8 @@
 	</ItemGroup>
 	<ItemDefinitionGroup>
 		<Link>
-			<AdditionalDependencies>Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+			<AdditionalDependencies Condition="'$(TargetOS)'=='Windows'">Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+			<LibraryDependencies Condition="'$(TargetOS)'=='Linux'">pthread;%(LibraryDependencies)</LibraryDependencies>
 		</Link>
 	</ItemDefinitionGroup>
 	<ImportGroup Label="PropertySheets">
