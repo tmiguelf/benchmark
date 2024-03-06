@@ -1,6 +1,8 @@
 #ifndef BENCHMARK_EXPORT_H
 #define BENCHMARK_EXPORT_H
 
+#define BENCHMARK_STATIC_DEFINE
+
 #if defined(_WIN32)
 #define EXPORT_ATTR __declspec(dllexport)
 #define IMPORT_ATTR __declspec(dllimport)
