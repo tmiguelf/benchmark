@@ -407,7 +407,8 @@ void RunBenchmarks(const std::vector<BenchmarkInstance>& benchmarks,
       benchmarks_with_threads += (benchmark.threads() > 1);
       runners.emplace_back(benchmark, &perfcounters, reports_for_family);
       int num_repeats_of_this_instance = runners.back().GetNumRepeats();
-      num_repetitions_total += num_repeats_of_this_instance;
+      num_repetitions_total +=
+          static_cast<size_t>(num_repeats_of_this_instance);
       if (reports_for_family)
         reports_for_family->num_runs_total += num_repeats_of_this_instance;
     }
@@ -756,7 +757,13 @@ int InitializeStreams() {
 
 }  // end namespace internal
 
-std::string GetBenchmarkVersion() { return {BENCHMARK_VERSION}; }
+std::string GetBenchmarkVersion() {
+#ifdef BENCHMARK_VERSION
+  return {BENCHMARK_VERSION};
+#else
+  return {""};
+#endif
+}
 
 void PrintDefaultHelp() {
   fprintf(stdout,
