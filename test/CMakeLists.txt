@@ -192,6 +192,9 @@ benchmark_add_test(NAME user_counters_thousands_test COMMAND user_counters_thous
 compile_output_test(memory_manager_test)
 benchmark_add_test(NAME memory_manager_test COMMAND memory_manager_test --benchmark_min_time=0.01s)
 
+compile_output_test(profiler_manager_test)
+benchmark_add_test(NAME profiler_manager_test COMMAND profiler_manager_test --benchmark_min_time=0.01s)
+
 # MSVC does not allow to set the language standard to C++98/03.
 if(NOT (MSVC OR CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC"))
   compile_benchmark_test(cxx03_test)
@@ -251,6 +254,7 @@ if (BENCHMARK_ENABLE_GTEST_TESTS)
   add_gtest(perf_counters_gtest)
   add_gtest(time_unit_gtest)
   add_gtest(min_time_parse_gtest)
+  add_gtest(profiler_manager_gtest)
 endif(BENCHMARK_ENABLE_GTEST_TESTS)
 
 ###############################################################################
