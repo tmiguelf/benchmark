@@ -1,12 +1,15 @@
 
-#include "benchmark/benchmark.h"
+#include "benchmark/benchmark_api.h"
+#include "benchmark/registration.h"
+#include "benchmark/state.h"
 #include "output_test.h"
 
+namespace {
 // ========================================================================= //
 // ------------------------ Testing Basic Output --------------------------- //
 // ========================================================================= //
 
-static void BM_ExplicitRepetitions(benchmark::State& state) {
+void BM_ExplicitRepetitions(benchmark::State& state) {
   for (auto _ : state) {
   }
 }
@@ -108,7 +111,7 @@ ADD_CASES(TC_CSVOut,
 // ------------------------ Testing Basic Output --------------------------- //
 // ========================================================================= //
 
-static void BM_ImplicitRepetitions(benchmark::State& state) {
+void BM_ImplicitRepetitions(benchmark::State& state) {
   for (auto _ : state) {
   }
 }
@@ -208,7 +211,48 @@ ADD_CASES(TC_CSVOut, {{"^\"BM_ImplicitRepetitions_median\",%csv_report$"}});
 ADD_CASES(TC_CSVOut, {{"^\"BM_ImplicitRepetitions_stddev\",%csv_report$"}});
 
 // ========================================================================= //
+// --------------------- Testing Skipped Repetitions ------------------------ //
+// ========================================================================= //
+
+void BM_SkippedFirstRepetition(benchmark::State& state) {
+  static int repetition_index = 0;
+  if (repetition_index++ == 0) {
+    state.SkipWithError("skipped first repetition");
+    return;
+  }
+  for (auto _ : state) {
+  }
+}
+BENCHMARK(BM_SkippedFirstRepetition)->Repetitions(3);
+
+ADD_CASES(
+    TC_ConsoleOut,
+    {{"^BM_SkippedFirstRepetition/repeats:3[ ]+ERROR OCCURRED: "
+      "'skipped first repetition'$"},
+     {"^BM_SkippedFirstRepetition/repeats:3 %console_report$", MR_Next},
+     {"^BM_SkippedFirstRepetition/repeats:3 %console_report$", MR_Next},
+     {"^BM_SkippedFirstRepetition/repeats:3_mean %console_report$", MR_Next},
+     {"^BM_SkippedFirstRepetition/repeats:3_median %console_report$", MR_Next},
+     {"^BM_SkippedFirstRepetition/repeats:3_stddev %console_report$",
+      MR_Next}});
+ADD_CASES(TC_JSONOut,
+          {{"\"name\": \"BM_SkippedFirstRepetition/repeats:3_mean\",$"},
+           {"\"run_type\": \"aggregate\",$"},
+           {"\"repetitions\": 3,$", MR_Next},
+           {"\"threads\": 1,$", MR_Next},
+           {"\"aggregate_name\": \"mean\",$", MR_Next},
+           {"\"aggregate_unit\": \"time\",$", MR_Next},
+           {"\"iterations\": 2,$", MR_Next}});
+ADD_CASES(TC_CSVOut,
+          {{"^\"BM_SkippedFirstRepetition/repeats:3_mean\",2,%float,%float,"
+            "ns,,,,,$"}});
+}  // end namespace
+
+// ========================================================================= //
 // --------------------------- TEST CASES END ------------------------------ //
 // ========================================================================= //
 
-int main(int argc, char* argv[]) { RunOutputTests(argc, argv); }
+int main(int argc, char* argv[]) {
+  benchmark::MaybeReenterWithoutASLR(argc, argv);
+  RunOutputTests(argc, argv);
+}

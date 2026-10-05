@@ -24,6 +24,10 @@ TEST_COPTS = [
     "-Werror=old-style-cast",
 ]
 
+TEST_MSVC_OPTS = [
+    "/std:c++17",
+]
+
 # Some of the issues with DoNotOptimize only occur when optimization is enabled
 PER_SRC_COPTS = {
     "donotoptimize_test.cc": ["-O3"],
@@ -32,11 +36,16 @@ PER_SRC_COPTS = {
 TEST_ARGS = ["--benchmark_min_time=0.01s"]
 
 PER_SRC_TEST_ARGS = {
-    "user_counters_tabular_test.cc": ["--benchmark_counters_tabular=true"],
+    "user_counters_tabular_test.cc": [
+        "--benchmark_counters_tabular=true",
+        "--benchmark_min_time=0.2s",
+    ],
     "repetitions_test.cc": [" --benchmark_repetitions=3"],
     "spec_arg_test.cc": ["--benchmark_filter=BM_NotChosen"],
     "spec_arg_verbosity_test.cc": ["--v=42"],
     "complexity_test.cc": ["--benchmark_min_time=1000000x"],
+    "user_counters_test.cc": ["--benchmark_min_time=0.2s"],
+    "user_counters_threads_test.cc": ["--benchmark_min_time=0.2s"],
 }
 
 cc_library(
@@ -45,7 +54,7 @@ cc_library(
     srcs = ["output_test_helper.cc"],
     hdrs = ["output_test.h"],
     copts = select({
-        "//:windows": [],
+        "//:windows": TEST_MSVC_OPTS,
         "//conditions:default": TEST_COPTS,
     }),
     deps = [
@@ -61,7 +70,7 @@ cc_library(
         size = "small",
         srcs = [test_src],
         copts = select({
-            "//:windows": [],
+            "//:windows": TEST_MSVC_OPTS,
             "//conditions:default": TEST_COPTS,
         }) + PER_SRC_COPTS.get(test_src, []),
         deps = [
@@ -82,7 +91,7 @@ cc_library(
         srcs = [test_src],
         args = TEST_ARGS + PER_SRC_TEST_ARGS.get(test_src, []),
         copts = select({
-            "//:windows": [],
+            "//:windows": TEST_MSVC_OPTS,
             "//conditions:default": TEST_COPTS,
         }) + PER_SRC_COPTS.get(test_src, []),
         deps = [
@@ -98,25 +107,24 @@ cc_library(
         ["*_test.cc"],
         exclude = [
             "*_assembly_test.cc",
-            "cxx03_test.cc",
+            "cxx11_test.cc",
             "link_main_test.cc",
         ],
     )
 ]
 
 cc_test(
-    name = "cxx03_test",
+    name = "cxx11_test",
     size = "small",
-    srcs = ["cxx03_test.cc"],
-    copts = TEST_COPTS + ["-std=c++03"],
+    srcs = ["cxx11_test.cc"],
+    copts = TEST_COPTS + ["-std=c++11"],
     target_compatible_with = select({
         "//:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
     deps = [
         ":output_test_helper",
-        "//:benchmark",
-        "//:benchmark_internal_headers",
+        "//:benchmark_main",
     ],
 )
 
@@ -125,7 +133,7 @@ cc_test(
     size = "small",
     srcs = ["link_main_test.cc"],
     copts = select({
-        "//:windows": [],
+        "//:windows": TEST_MSVC_OPTS,
         "//conditions:default": TEST_COPTS,
     }),
     deps = ["//:benchmark_main"],

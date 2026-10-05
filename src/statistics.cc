@@ -21,22 +21,28 @@
 #include <string>
 #include <vector>
 
-#include "benchmark/benchmark.h"
+#include "benchmark/reporter.h"
+#include "benchmark/statistics.h"
+#include "benchmark/types.h"
 #include "check.h"
 
 namespace benchmark {
 
-auto StatisticsSum = [](const std::vector<double>& v) {
+const auto StatisticsSum = [](const std::vector<double>& v) {
   return std::accumulate(v.begin(), v.end(), 0.0);
 };
 
 double StatisticsMean(const std::vector<double>& v) {
-  if (v.empty()) return 0.0;
+  if (v.empty()) {
+    return 0.0;
+  }
   return StatisticsSum(v) * (1.0 / static_cast<double>(v.size()));
 }
 
 double StatisticsMedian(const std::vector<double>& v) {
-  if (v.size() < 3) return StatisticsMean(v);
+  if (v.size() < 3) {
+    return StatisticsMean(v);
+  }
   std::vector<double> copy(v);
 
   auto center = copy.begin() + v.size() / 2;
@@ -47,29 +53,37 @@ double StatisticsMedian(const std::vector<double>& v) {
   // before.  Instead of resorting, we just look for the max value before it,
   // which is not necessarily the element immediately preceding `center` Since
   // `copy` is only partially sorted by `nth_element`.
-  if (v.size() % 2 == 1) return *center;
+  if (v.size() % 2 == 1) {
+    return *center;
+  }
   auto center2 = std::max_element(copy.begin(), center);
   return (*center + *center2) / 2.0;
 }
 
 // Return the sum of the squares of this sample set
-auto SumSquares = [](const std::vector<double>& v) {
+const auto SumSquares = [](const std::vector<double>& v) {
   return std::inner_product(v.begin(), v.end(), v.begin(), 0.0);
 };
 
-auto Sqr = [](const double dat) { return dat * dat; };
-auto Sqrt = [](const double dat) {
+const auto Sqr = [](const double dat) { return dat * dat; };
+const auto Sqrt = [](const double dat) {
   // Avoid NaN due to imprecision in the calculations
-  if (dat < 0.0) return 0.0;
+  if (dat < 0.0) {
+    return 0.0;
+  }
   return std::sqrt(dat);
 };
 
 double StatisticsStdDev(const std::vector<double>& v) {
   const auto mean = StatisticsMean(v);
-  if (v.empty()) return mean;
+  if (v.empty()) {
+    return mean;
+  }
 
   // Sample standard deviation is undefined for n = 1
-  if (v.size() == 1) return 0.0;
+  if (v.size() == 1) {
+    return 0.0;
+  }
 
   const double avg_squares =
       SumSquares(v) * (1.0 / static_cast<double>(v.size()));
@@ -79,12 +93,16 @@ double StatisticsStdDev(const std::vector<double>& v) {
 }
 
 double StatisticsCV(const std::vector<double>& v) {
-  if (v.size() < 2) return 0.0;
+  if (v.size() < 2) {
+    return 0.0;
+  }
 
   const auto stddev = StatisticsStdDev(v);
   const auto mean = StatisticsMean(v);
 
-  if (std::fpclassify(mean) == FP_ZERO) return 0.0;
+  if (std::fpclassify(mean) == FP_ZERO) {
+    return 0.0;
+  }
 
   return stddev / mean;
 }
@@ -94,10 +112,15 @@ std::vector<BenchmarkReporter::Run> ComputeStats(
   typedef BenchmarkReporter::Run Run;
   std::vector<Run> results;
 
-  auto error_count = std::count_if(reports.begin(), reports.end(),
-                                   [](Run const& run) { return run.skipped; });
+  const auto is_successful = [](Run const& run) {
+    return run.skipped == internal::NotSkipped;
+  };
+  auto successful_run =
+      std::find_if(reports.begin(), reports.end(), is_successful);
+  const auto successful_count = static_cast<size_t>(
+      std::count_if(reports.begin(), reports.end(), is_successful));
 
-  if (reports.size() - static_cast<size_t>(error_count) < 2) {
+  if (successful_count < 2) {
     // We don't report aggregated data if there was a single run.
     return results;
   }
@@ -106,12 +129,12 @@ std::vector<BenchmarkReporter::Run> ComputeStats(
   std::vector<double> real_accumulated_time_stat;
   std::vector<double> cpu_accumulated_time_stat;
 
-  real_accumulated_time_stat.reserve(reports.size());
-  cpu_accumulated_time_stat.reserve(reports.size());
+  real_accumulated_time_stat.reserve(successful_count);
+  cpu_accumulated_time_stat.reserve(successful_count);
 
   // All repetitions should be run with the same number of iterations so we
   // can take this information from the first benchmark.
-  const IterationCount run_iterations = reports.front().iterations;
+  const IterationCount run_iterations = successful_run->iterations;
   // create stats for user counters
   struct CounterStat {
     Counter c;
@@ -119,6 +142,9 @@ std::vector<BenchmarkReporter::Run> ComputeStats(
   };
   std::map<std::string, CounterStat> counter_stats;
   for (Run const& r : reports) {
+    if (!is_successful(r)) {
+      continue;
+    }
     for (auto const& cnt : r.counters) {
       auto it = counter_stats.find(cnt.first);
       if (it == counter_stats.end()) {
@@ -126,7 +152,7 @@ std::vector<BenchmarkReporter::Run> ComputeStats(
                  .emplace(cnt.first,
                           CounterStat{cnt.second, std::vector<double>{}})
                  .first;
-        it->second.s.reserve(reports.size());
+        it->second.s.reserve(successful_count);
       } else {
         BM_CHECK_EQ(it->second.c.flags, cnt.second.flags);
       }
@@ -135,9 +161,11 @@ std::vector<BenchmarkReporter::Run> ComputeStats(
 
   // Populate the accumulators.
   for (Run const& run : reports) {
-    BM_CHECK_EQ(reports[0].benchmark_name(), run.benchmark_name());
+    BM_CHECK_EQ(successful_run->benchmark_name(), run.benchmark_name());
+    if (!is_successful(run)) {
+      continue;
+    }
     BM_CHECK_EQ(run_iterations, run.iterations);
-    if (run.skipped) continue;
     real_accumulated_time_stat.emplace_back(run.real_accumulated_time);
     cpu_accumulated_time_stat.emplace_back(run.cpu_accumulated_time);
     // user counters
@@ -149,26 +177,30 @@ std::vector<BenchmarkReporter::Run> ComputeStats(
   }
 
   // Only add label if it is same for all runs
-  std::string report_label = reports[0].report_label;
-  for (std::size_t i = 1; i < reports.size(); i++) {
-    if (reports[i].report_label != report_label) {
+  std::string report_label = successful_run->report_label;
+  for (const Run& run : reports) {
+    if (!is_successful(run)) {
+      continue;
+    }
+    if (run.report_label != report_label) {
       report_label = "";
       break;
     }
   }
 
   const double iteration_rescale_factor =
-      double(reports.size()) / double(run_iterations);
+      static_cast<double>(successful_count) /
+      static_cast<double>(run_iterations);
 
-  for (const auto& Stat : *reports[0].statistics) {
+  for (const auto& Stat : *successful_run->statistics) {
     // Get the data from the accumulator to BenchmarkReporter::Run's.
     Run data;
-    data.run_name = reports[0].run_name;
-    data.family_index = reports[0].family_index;
-    data.per_family_instance_index = reports[0].per_family_instance_index;
+    data.run_name = successful_run->run_name;
+    data.family_index = successful_run->family_index;
+    data.per_family_instance_index = successful_run->per_family_instance_index;
     data.run_type = BenchmarkReporter::Run::RT_Aggregate;
-    data.threads = reports[0].threads;
-    data.repetitions = reports[0].repetitions;
+    data.threads = successful_run->threads;
+    data.repetitions = successful_run->repetitions;
     data.repetition_index = Run::no_repetition_index;
     data.aggregate_name = Stat.name_;
     data.aggregate_unit = Stat.unit_;
@@ -179,7 +211,7 @@ std::vector<BenchmarkReporter::Run> ComputeStats(
     // Similarly, if there are N repetitions with 1 iterations each,
     // an aggregate will be computed over N measurements, not 1.
     // Thus it is best to simply use the count of separate reports.
-    data.iterations = static_cast<IterationCount>(reports.size());
+    data.iterations = static_cast<IterationCount>(successful_count);
 
     data.real_accumulated_time = Stat.compute_(real_accumulated_time_stat);
     data.cpu_accumulated_time = Stat.compute_(cpu_accumulated_time_stat);
@@ -194,7 +226,7 @@ std::vector<BenchmarkReporter::Run> ComputeStats(
       data.cpu_accumulated_time *= iteration_rescale_factor;
     }
 
-    data.time_unit = reports[0].time_unit;
+    data.time_unit = successful_run->time_unit;
 
     // user counters
     for (auto const& kv : counter_stats) {

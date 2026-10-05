@@ -39,15 +39,15 @@ set_property(
 if (PFM_FOUND)
   target_link_libraries(benchmark PRIVATE PFM::libpfm)
   target_compile_definitions(benchmark PRIVATE -DHAVE_LIBPFM)
+  install(
+      FILES "${PROJECT_SOURCE_DIR}/cmake/Modules/FindPFM.cmake"
+      DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 endif()
 
 # pthread affinity, if available
 if(HAVE_PTHREAD_AFFINITY)
   target_compile_definitions(benchmark PRIVATE -DBENCHMARK_HAS_PTHREAD_AFFINITY)
 endif()
-
-# Link threads.
-target_link_libraries(benchmark PRIVATE Threads::Threads)
 
 target_link_libraries(benchmark PRIVATE ${BENCHMARK_CXX_LIBRARIES})
 
@@ -64,7 +64,6 @@ endif()
 # We need extra libraries on Solaris
 if(${CMAKE_SYSTEM_NAME} MATCHES "SunOS")
   target_link_libraries(benchmark PRIVATE kstat)
-  set(BENCHMARK_PRIVATE_LINK_LIBRARIES -lkstat)
 endif()
 
 if (NOT BUILD_SHARED_LIBS)
@@ -106,7 +105,47 @@ write_basic_package_version_file(
   "${version_config}" VERSION ${GENERIC_LIB_VERSION} COMPATIBILITY SameMajorVersion
 )
 
+# Derive private link libraries from target
+if(NOT BUILD_SHARED_LIBS)
+  get_target_property(LINK_LIBS benchmark LINK_LIBRARIES)
+  if(LINK_LIBS)
+    set(BENCHMARK_PRIVATE_LINK_LIBRARIES "")
+    foreach(LIB IN LISTS LINK_LIBS)
+      if(NOT TARGET "${LIB}" AND LIB MATCHES "^[a-zA-Z0-9_.-]+$")
+        list(APPEND BENCHMARK_PRIVATE_LINK_LIBRARIES "-l${LIB}")
+      elseif(TARGET "${LIB}")
+        get_target_property(_target_type "${LIB}" TYPE)
+        if(_target_type MATCHES "^(UNKNOWN|STATIC|SHARED|MODULE)_LIBRARY$")
+          get_target_property(_imported_loc "${LIB}" IMPORTED_LOCATION)
+          if(_imported_loc)
+            get_filename_component(_imported_dir "${_imported_loc}" DIRECTORY)
+            get_filename_component(_imported_name "${_imported_loc}" NAME)
+            string(REGEX REPLACE "^lib" "" _imported_name "${_imported_name}")
+            string(REGEX REPLACE "\\.(so|a|dylib)([0-9.]*)$" "" _imported_name "${_imported_name}")
+            list(APPEND BENCHMARK_PRIVATE_LINK_LIBRARIES "-L${_imported_dir}" "-l${_imported_name}")
+          endif()
+        endif()
+      endif()
+    endforeach()
+    string(JOIN " " BENCHMARK_PRIVATE_LINK_LIBRARIES ${BENCHMARK_PRIVATE_LINK_LIBRARIES})
+  endif()
+endif()
+
+function(_cmake_path output_var install_dir path_prefix)
+  if(IS_ABSOLUTE "${install_dir}")
+    set("${output_var}" "${install_dir}" PARENT_SCOPE)
+  else()
+    # FIXME: Use cmake_path(APPEND) once the minimum CMake version is 3.20.
+    set("${output_var}" "\${${path_prefix}}/${install_dir}" PARENT_SCOPE)
+  endif()
+endfunction()
+
+_cmake_path(BENCHMARK_PKG_CONFIG_LIBDIR "${CMAKE_INSTALL_LIBDIR}" "exec_prefix")
+
+_cmake_path(BENCHMARK_PKG_CONFIG_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}" "prefix")
+
 configure_file("${PROJECT_SOURCE_DIR}/cmake/benchmark.pc.in" "${pkg_config}" @ONLY)
+
 configure_file("${PROJECT_SOURCE_DIR}/cmake/benchmark_main.pc.in" "${pkg_config_main}" @ONLY)
 
 export (
@@ -177,4 +216,12 @@ else()
       DIRECTORY "${PROJECT_SOURCE_DIR}/docs/"
       DESTINATION ${CMAKE_INSTALL_DOCDIR})
   endif()
+endif()
+
+set(CMAKE_INSTALL_PYTOOLSDIR "${CMAKE_INSTALL_DATADIR}/googlebenchmark/tools" CACHE PATH "")
+
+if (BENCHMARK_ENABLE_INSTALL AND BENCHMARK_INSTALL_TOOLS)
+  install(
+    DIRECTORY "${PROJECT_SOURCE_DIR}/tools/"
+    DESTINATION ${CMAKE_INSTALL_PYTOOLSDIR})
 endif()

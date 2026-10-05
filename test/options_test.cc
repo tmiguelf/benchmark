@@ -1,13 +1,17 @@
 #include <chrono>
 #include <thread>
 
-#include "benchmark/benchmark.h"
+#include "benchmark/benchmark_api.h"
+#include "benchmark/registration.h"
+#include "benchmark/state.h"
+#include "benchmark/types.h"
 
 #if defined(NDEBUG)
 #undef NDEBUG
 #endif
 #include <cassert>
 
+namespace {
 void BM_basic(benchmark::State& state) {
   for (auto _ : state) {
   }
@@ -37,6 +41,7 @@ BENCHMARK(BM_basic)->MinWarmUpTime(0.8);
 BENCHMARK(BM_basic)->MinTime(0.1)->MinWarmUpTime(0.2);
 BENCHMARK(BM_basic)->UseRealTime();
 BENCHMARK(BM_basic)->ThreadRange(2, 4);
+BENCHMARK(BM_basic)->ThreadRange(1, 16, 4);
 BENCHMARK(BM_basic)->ThreadPerCpu();
 BENCHMARK(BM_basic)->Repetitions(3);
 BENCHMARK(BM_basic)
@@ -50,7 +55,7 @@ BENCHMARK(BM_basic)->RangeMultiplier(4)->Range(-8, 8);
 BENCHMARK(BM_basic)->DenseRange(-2, 2, 1);
 BENCHMARK(BM_basic)->Ranges({{-64, 1}, {-8, -1}});
 
-void CustomArgs(benchmark::internal::Benchmark* b) {
+void CustomArgs(benchmark::Benchmark* b) {
   for (int i = 0; i < 10; ++i) {
     b->Arg(i);
   }
@@ -73,5 +78,6 @@ void BM_explicit_iteration_count(benchmark::State& state) {
   assert(state.iterations() == 42);
 }
 BENCHMARK(BM_explicit_iteration_count)->Iterations(42);
+}  // end namespace
 
 BENCHMARK_MAIN();

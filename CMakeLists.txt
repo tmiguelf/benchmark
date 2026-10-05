@@ -1,7 +1,7 @@
-# Require CMake 3.10. If available, use the policies up to CMake 3.22.
+# Require CMake 3.13. If available, use the policies up to CMake 3.22.
 cmake_minimum_required (VERSION 3.13...3.22)
 
-project (benchmark VERSION 1.9.1 LANGUAGES CXX)
+project (benchmark VERSION 1.9.5 LANGUAGES CXX)
 
 option(BENCHMARK_ENABLE_TESTING "Enable testing of the benchmark library." ON)
 option(BENCHMARK_ENABLE_EXCEPTIONS "Enable the use of exceptions in the benchmark library." ON)
@@ -29,6 +29,7 @@ endif()
 option(BENCHMARK_ENABLE_INSTALL "Enable installation of benchmark. (Projects embedding benchmark may want to turn this OFF.)" ON)
 option(BENCHMARK_ENABLE_DOXYGEN "Build documentation with Doxygen." OFF)
 option(BENCHMARK_INSTALL_DOCS "Enable installation of documentation." ON)
+option(BENCHMARK_INSTALL_TOOLS "Enable installation of tools." ON)
 
 # Allow unmet dependencies to be met using CMake's ExternalProject mechanics, which
 # may require downloading the source code.
@@ -40,6 +41,7 @@ option(BENCHMARK_ENABLE_GTEST_TESTS "Enable building the unit tests which depend
 option(BENCHMARK_USE_BUNDLED_GTEST "Use bundled GoogleTest. If disabled, the find_package(GTest) will be used." ON)
 
 option(BENCHMARK_ENABLE_LIBPFM "Enable performance counters provided by libpfm" OFF)
+option(BENCHMARK_ENABLE_RUST_BINDINGS "Enable testing of the Rust bindings" OFF)
 
 # Export only public symbols
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -132,7 +134,12 @@ include(CheckCXXCompilerFlag)
 include(CheckLibraryExists)
 include(CXXFeatureCheck)
 
-check_library_exists(rt shm_open "" HAVE_LIB_RT)
+# Check for rt library, but explicitly disable for QNX
+if(QNXNTO)
+  set(HAVE_LIB_RT FALSE)
+else()
+  check_library_exists(rt shm_open "" HAVE_LIB_RT)
+endif()
 
 if (BENCHMARK_BUILD_32_BITS)
   add_required_cxx_compiler_flag(-m32)
@@ -196,15 +203,16 @@ else()
   add_cxx_compiler_flag(-Wfloat-equal)
   add_cxx_compiler_flag(-Wold-style-cast)
   add_cxx_compiler_flag(-Wconversion)
+  add_cxx_compiler_flag(-Wformat=2)
   if(BENCHMARK_ENABLE_WERROR)
       add_cxx_compiler_flag(-Werror)
+      add_cxx_compiler_flag(-pedantic-errors)
   endif()
   if (NOT BENCHMARK_ENABLE_TESTING)
     # Disable warning when compiling tests as gtest does not use 'override'.
     add_cxx_compiler_flag(-Wsuggest-override)
   endif()
   add_cxx_compiler_flag(-pedantic)
-  add_cxx_compiler_flag(-pedantic-errors)
   add_cxx_compiler_flag(-Wshorten-64-to-32)
   add_cxx_compiler_flag(-fstrict-aliasing)
   # Disable warnings regarding deprecated parts of the library while building
@@ -216,6 +224,9 @@ else()
     # See #631 for rationale.
     add_cxx_compiler_flag(-wd1786)
     add_cxx_compiler_flag(-fno-finite-math-only)
+    # ICC17u2: overloaded virtual function "benchmark::Fixture::SetUp" is only partially
+    # overridden (because of deprecated overload)
+    add_cxx_compiler_flag(-wd654)
   endif()
   # Disable deprecation warnings for release builds (when -Werror is enabled).
   if(BENCHMARK_ENABLE_WERROR)
@@ -230,9 +241,7 @@ else()
       add_cxx_compiler_flag(-Wstrict-aliasing)
     endif()
   endif()
-  # ICC17u2: overloaded virtual function "benchmark::Fixture::SetUp" is only partially overridden
-  # (because of deprecated overload)
-  add_cxx_compiler_flag(-wd654)
+
   add_cxx_compiler_flag(-Wthread-safety)
   if (HAVE_CXX_FLAG_WTHREAD_SAFETY)
     cxx_feature_check(THREAD_SAFETY_ATTRIBUTES "-DINCLUDE_DIRECTORIES=${PROJECT_SOURCE_DIR}/include")
@@ -306,17 +315,11 @@ if (BENCHMARK_USE_LIBCXX)
   endif()
 endif(BENCHMARK_USE_LIBCXX)
 
-set(EXTRA_CXX_FLAGS "")
-if (WIN32 AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-  # Clang on Windows fails to compile the regex feature check under C++11
-  set(EXTRA_CXX_FLAGS "-DCMAKE_CXX_STANDARD=14")
-endif()
-
 # C++ feature checks
 # Determine the correct regular expression engine to use
-cxx_feature_check(STD_REGEX ${EXTRA_CXX_FLAGS})
-cxx_feature_check(GNU_POSIX_REGEX ${EXTRA_CXX_FLAGS})
-cxx_feature_check(POSIX_REGEX ${EXTRA_CXX_FLAGS})
+cxx_feature_check(STD_REGEX)
+cxx_feature_check(GNU_POSIX_REGEX)
+cxx_feature_check(POSIX_REGEX)
 if(NOT HAVE_STD_REGEX AND NOT HAVE_GNU_POSIX_REGEX AND NOT HAVE_POSIX_REGEX)
   message(FATAL_ERROR "Failed to determine the source files for the regular expression backend")
 endif()
@@ -329,6 +332,12 @@ cxx_feature_check(STEADY_CLOCK)
 # Ensure we have pthreads
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
+
+# cxx_feature_check relies on try_run to probe compiler features. Because this
+# check does not produce a real target, target_link_libraries cannot be applied.
+# Therefore, link libraries are forwarded to try_run through
+# BENCHMARK_CXX_LIBRARIES.
+list(APPEND BENCHMARK_CXX_LIBRARIES Threads::Threads)
 cxx_feature_check(PTHREAD_AFFINITY)
 
 if (BENCHMARK_ENABLE_LIBPFM)

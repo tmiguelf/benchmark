@@ -4,7 +4,11 @@ on:
   push: {}
   pull_request: {}
 
+permissions:
+  contents: read
+
 env:
+  CMAKE_GENERATOR: Ninja
   UBSAN_OPTIONS: "print_stacktrace=1"
 
 jobs:
@@ -18,7 +22,9 @@ jobs:
         sanitizer: ['asan', 'ubsan', 'tsan', 'msan']
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
 
     - name: configure msan env
       if: matrix.sanitizer == 'msan'
@@ -51,7 +57,7 @@ jobs:
         echo "ASAN_OPTIONS=alloc_dealloc_mismatch=0" >> $GITHUB_ENV
 
     - name: setup clang
-      uses: egor-tensin/setup-clang@v1
+      uses: egor-tensin/setup-clang@23bc15cd4207e45f1566447deb48f4ff3ef932cb # v2.3
       with:
         version: latest
         platform: x64
@@ -65,24 +71,26 @@ jobs:
       if: matrix.sanitizer != 'asan'
       run: |
         "${GITHUB_WORKSPACE}/.github/libcxx-setup.sh"
-        echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -L ${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -Isystem${GITHUB_WORKSPACE}/llvm-build/include -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
+        echo "EXTRA_CXX_FLAGS=-stdlib=libc++ -L${GITHUB_WORKSPACE}/llvm-build/lib -lc++abi -I${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Isystem${GITHUB_WORKSPACE}/llvm-build/include/c++/v1 -Wl,-rpath,${GITHUB_WORKSPACE}/llvm-build/lib" >> $GITHUB_ENV
 
     - name: create build environment
-      run: cmake -E make_directory ${{ runner.workspace }}/_build
+      run: cmake -E make_directory ${RUNNER_WORKSPACE}/_build
+      env:
+        RUNNER_WORKSPACE: ${{ runner.workspace }}
 
     - name: configure cmake
       shell: bash
       working-directory: ${{ runner.workspace }}/_build
       run: >
         VERBOSE=1
-        cmake $GITHUB_WORKSPACE
+        cmake -GNinja $GITHUB_WORKSPACE
         -DBENCHMARK_ENABLE_ASSEMBLY_TESTS=OFF
         -DBENCHMARK_ENABLE_LIBPFM=OFF
         -DBENCHMARK_DOWNLOAD_DEPENDENCIES=ON
-        -DCMAKE_C_COMPILER=${{ env.CC }}
-        -DCMAKE_CXX_COMPILER=${{ env.CXX }}
-        -DCMAKE_C_FLAGS="${{ env.EXTRA_FLAGS }}"
-        -DCMAKE_CXX_FLAGS="${{ env.EXTRA_FLAGS }} ${{ env.EXTRA_CXX_FLAGS }}"
+        -DCMAKE_C_COMPILER=${CC}
+        -DCMAKE_CXX_COMPILER=${CXX}
+        -DCMAKE_C_FLAGS="${EXTRA_FLAGS}"
+        -DCMAKE_CXX_FLAGS="${EXTRA_FLAGS} ${EXTRA_CXX_FLAGS}"
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
 
     - name: build
